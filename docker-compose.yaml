@@ -1,0 +1,37 @@
+services:
+  librespot:
+    image: ghcr.io/tyz/librespot-docker:0.8.0
+    container_name: librespot
+    restart: unless-stopped
+
+    # Required for zeroconf
+    network_mode: host
+
+    # For ALSA dmix
+    ipc: host
+
+    # Access to hardware devices
+    privileged: true
+    devices:
+      - /dev/snd:/dev/snd
+
+    # To access /dev/snd/*
+    group_add:
+      - audio
+
+    # The default env vars from ./docker/entrypoint.sh
+    environment:
+      - LIBRESPOT_NAME=Librespot Docker
+      - LIBRESPOT_BACKEND=alsa
+      - LIBRESPOT_DEVICE=default
+      - LIBRESPOT_BITRATE=320
+      - LIBRESPOT_INITIAL_VOLUME=100
+      - LIBRESPOT_ZEROCONF_PORT=30242
+
+    volumes:
+      # Host's ALSA config
+      - /etc/asound.conf:/etc/asound.conf:ro
+
+    # Avoid librespot writing the currently playing track to the SD-card
+    tmpfs:
+      - /tmp

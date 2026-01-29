@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: librespot
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: librespot
+      app.kubernetes.io/instance: librespot
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: librespot
+        app.kubernetes.io/instance: librespot
+    spec:
+      containers:
+      - name: librespot
+        image: ghcr.io/tyz/librespot-docker:0.8.0
+        imagePullPolicy: IfNotPresent
+
+        # default environment vars from ./docker/entrypoint.sh
+        env:
+        - name: LIBRESPOT_NAME
+          value: "Librespot Docker"
+        - name: LIBRESPOT_ZEROCONF_PORT
+          value: "30242"
+        - name: LIBRESPOT_BACKEND
+          value: "alsa"
+        - name: LIBRESPOT_DEVICE
+          value: "default"
+        - name: LIBRESPOT_BITRATE
+          value: "320"
+        - name: LIBRESPOT_FORMAT
+          value: "S32"
+        - name: LIBRESPOT_INITIAL_VOLUME
+          value: "100"
+
+        securityContext:
+          # Access to hardware devices
+          privileged: true
+
+        volumeMounts:
+          # Access to the ALSA devices
+        - mountPath: /dev/snd
+          name: alsa
+          readOnly: false
+          # Host's ALSA config
+        - mountPath: /etc/asound.conf
+          name: asound-conf
+          readOnly: true
+          # Avoid librespot writing the currently playing track to the SD-card
+        - mountPath: /tmp
+          name: tmpfs
+          readOnly: false
+
+      # For ALSA dmix
+      hostIPC: true
+
+      # Required for zeroconf
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+
+      securityContext:
+        # The 'audio' group, to access /dev/snd/*
+        supplementalGroups:
+        - 29
+
+      volumes:
+      - hostPath:
+          path: /dev/snd
+        name: alsa
+      - hostPath:
+          path: /etc/asound.conf
+          type: File
+        name: asound-conf
+      - emptyDir:
+          medium: Memory
+          sizeLimit: 256Mi
+        name: tmpfs
