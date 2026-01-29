@@ -3,6 +3,7 @@
 set -e
 
 : "${LIBRESPOT_NAME:=Librespot Docker}"
+: "${LIBRESPOT_ZEROCONF_PORT:=30242}"
 : "${LIBRESPOT_BACKEND:=alsa}"
 : "${LIBRESPOT_DEVICE:=default}"
 : "${LIBRESPOT_BITRATE:=320}"
@@ -20,6 +21,7 @@ exec /usr/local/bin/librespot \
     --bitrate "$LIBRESPOT_BITRATE" \
     --format "$LIBRESPOT_FORMAT" \
     --initial-volume "$LIBRESPOT_INITIAL_VOLUME" \
+    --zeroconf-port "$LIBRESPOT_ZEROCONF_PORT" \
     --disable-audio-cache \
     --enable-volume-normalisation \
     --normalisation-pregain 6 \
