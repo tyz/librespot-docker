@@ -41,6 +41,8 @@ jobs:
         run: |
           cp Dockerfile librespot-source/
           cp -r docker librespot-source/
+          echo ".git" > librespot-source/.dockerignore
+          echo "target" >> librespot-source/.dockerignore
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -73,3 +75,4 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          provenance: false

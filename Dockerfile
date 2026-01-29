@@ -1,11 +1,6 @@
-# --- Stage 1: Builder (Native ARM64) ---
-FROM debian:bookworm AS builder
+# --- Base Stage (Shared setup) ---
 
-# Install dependencies for native compilation
-# Note: No 'crossbuild-essential' or ':arm64' suffixes needed anymore
-RUN echo "deb http://deb.debian.org/debian bookworm main" > /etc/apt/sources.list && \
-    echo "deb http://deb.debian.org/debian bookworm-updates main" >> /etc/apt/sources.list && \
-    echo "deb http://deb.debian.org/debian-security bookworm-security main" >> /etc/apt/sources.list
+FROM debian:bookworm AS base
 
 RUN apt-get update && \
     apt-get install -y \
@@ -18,29 +13,42 @@ RUN apt-get update && \
     pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
-# Setup Rust environment
 ENV PATH="/root/.cargo/bin/:${PATH}"
 RUN curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain 1.85 -y && \
-    cargo install bindgen-cli
+    cargo install cargo-chef
 
 WORKDIR /src
-# We assume the context is prepared by GHA (source code present)
-COPY . .
 
-# Build the release binary natively
-# We still use cache mounts to speed up rebuilds
+# --- Stage 1: Planner (Calculate recipe) ---
+
+FROM base AS planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
+
+# --- Stage 2: Builder (Compile dependencies) ---
+
+FROM base AS builder
+COPY --from=planner /src/recipe.json recipe.json
+RUN --mount=type=cache,target=/root/.cargo/registry \
+    --mount=type=cache,target=/src/target \
+    cargo chef cook --release --recipe-path recipe.json \
+    --no-default-features \
+    --features "rustls-tls-webpki-roots alsa-backend with-libmdns"
+
+# --- Stage 3: Compiler (Compileer source code) ---
+
+COPY . .
 RUN --mount=type=cache,target=/root/.cargo/registry \
     --mount=type=cache,target=/src/target \
     cargo build --release \
     --no-default-features \
     --features "rustls-tls-webpki-roots alsa-backend with-libmdns" && \
-    # Copy binary to a temporary location to separate it from the build cache
     cp target/release/librespot /tmp/librespot
 
-# --- Stage 2: Runtime (Final Image) ---
+# --- Stage 4: Runtime (Final Image) ---
+
 FROM debian:bookworm-slim
 
-# Install runtime dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     libasound2 \
@@ -48,13 +56,10 @@ RUN apt-get update && \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Setup user
 RUN groupadd -r librespot && useradd -r -g librespot -G audio librespot
 
-# Copy artifact and script
 COPY --from=builder /tmp/librespot /usr/local/bin/librespot
 COPY docker/entrypoint.sh /entrypoint.sh
-
 RUN chmod +x /entrypoint.sh
 
 USER librespot
