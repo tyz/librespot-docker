@@ -15,7 +15,6 @@ env:
 
 jobs:
   build:
-    # This uses the new beta ARM64 runners
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
@@ -30,6 +29,13 @@ jobs:
         with:
           repository: librespot-org/librespot
           path: librespot-source
+
+      - name: Get Librespot version from Cargo.toml
+        id: version
+        run: |
+          VERSION=$(awk -F '"' '/^version/ {print $2; exit}' librespot-source/Cargo.toml)
+          echo "Found version: $VERSION"
+          echo "librespot_version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Prepare build context
         run: |
@@ -55,6 +61,7 @@ jobs:
           tags: |
             type=raw,value=latest
             type=sha,prefix=sha-
+            type=raw,value=${{ steps.version.outputs.librespot_version }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
@@ -64,6 +71,5 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # No 'platforms' arg needed, it defaults to the runner's arch (linux/arm64)
           cache-from: type=gha
           cache-to: type=gha,mode=max
