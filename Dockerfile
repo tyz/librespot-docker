@@ -2,7 +2,8 @@
 
 FROM debian:bookworm AS base
 
-RUN apt-get update && \
+RUN --mount=type=cache,target=/var/cache/apt \
+    apt-get update && \
     apt-get install -y \
     build-essential \
     cmake \
@@ -49,7 +50,8 @@ RUN --mount=type=cache,target=/root/.cargo/registry \
 
 FROM debian:bookworm-slim
 
-RUN apt-get update && \
+RUN --mount=type=cache,target=/var/cache/apt \
+    apt-get update && \
     apt-get install -y --no-install-recommends \
     libasound2 \
     libpulse0 \
