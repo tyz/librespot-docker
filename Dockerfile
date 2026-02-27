@@ -1,12 +1,19 @@
+# syntax=docker/dockerfile:1
+
 # --- Base Stage (Shared setup) ---
 
 FROM debian:bookworm AS base
 
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN rm -f /etc/apt/apt.conf.d/docker-clean && \
+    echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache
+
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' >/etc/apt/apt.conf.d/keep-cache && \
+    --mount=type=cache,target=/var/cache/debconf \
     apt-get update && \
-    apt-get install -y \
+    apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
     curl \
@@ -14,7 +21,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     libasound2-dev \
     libpulse-dev \
     pkg-config \
-    && rm -rf /var/lib/apt/lists/*
+    ca-certificates
 
 ENV PATH="/root/.cargo/bin/:${PATH}"
 RUN curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain 1.85 -y && \
@@ -52,15 +59,19 @@ RUN --mount=type=cache,target=/root/.cargo/registry \
 
 FROM debian:bookworm-slim
 
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN rm -f /etc/apt/apt.conf.d/docker-clean && \
+    echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache
+
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' >/etc/apt/apt.conf.d/keep-cache && \
+    --mount=type=cache,target=/var/cache/debconf \
     apt-get update && \
     apt-get install -y --no-install-recommends \
     libasound2 \
     libpulse0 \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+    ca-certificates
 
 RUN groupadd -r librespot && useradd -r -g librespot -G audio librespot
 
