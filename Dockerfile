@@ -1,8 +1,6 @@
 # syntax=docker/dockerfile:1
 
-# --- Base Stage (Shared setup) ---
-
-FROM debian:bookworm AS base
+FROM debian:bookworm AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -19,43 +17,29 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     curl \
     git \
     libasound2-dev \
-    libpulse-dev \
+    libclang-dev \
+    libpulse0 \
     pkg-config \
     ca-certificates
 
 ENV PATH="/root/.cargo/bin/:${PATH}"
 RUN curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain 1.85 -y && \
-    cargo install cargo-chef
+    rustup target add aarch64-unknown-linux-gnu && \
+    cargo install bindgen-cli && \
+    mkdir /.cargo && \
+    echo '[target.aarch64-unknown-linux-gnu]\nlinker = "aarch64-linux-gnu-gcc"' > /.cargo/config
+
+ENV CARGO_TARGET_DIR=/build
+ENV CARGO_HOME=/build/cache
+ENV PKG_CONFIG_PATH_aarch64-unknown-linux-gnu=/usr/lib/aarch64-linux-gnu/pkgconfig/
 
 WORKDIR /src
 
-# --- Stage 1: Planner (Calculate recipe) ---
+RUN git clone https://github.com/librespot-org/librespot.git .
 
-FROM base AS planner
-COPY . .
-RUN cargo chef prepare --recipe-path recipe.json
+RUN cargo build --release --target aarch64-unknown-linux-gnu --no-default-features --features "alsa-backend with-libmdns rustls-tls-webpki-roots"
 
-# --- Stage 2: Builder (Compile dependencies) ---
-
-FROM base AS builder
-COPY --from=planner /src/recipe.json recipe.json
-RUN --mount=type=cache,target=/root/.cargo/registry \
-    --mount=type=cache,target=/src/target \
-    cargo chef cook --release --recipe-path recipe.json \
-    --no-default-features \
-    --features "rustls-tls-webpki-roots alsa-backend with-libmdns"
-
-# --- Stage 3: Compiler (Compileer source code) ---
-
-COPY . .
-RUN --mount=type=cache,target=/root/.cargo/registry \
-    --mount=type=cache,target=/src/target \
-    cargo build --release \
-    --no-default-features \
-    --features "rustls-tls-webpki-roots alsa-backend with-libmdns" && \
-    cp target/release/librespot /tmp/librespot
-
-# --- Stage 4: Runtime (Final Image) ---
+###
 
 FROM debian:bookworm-slim
 
@@ -75,7 +59,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 RUN groupadd -r librespot && useradd -r -g librespot -G audio librespot
 
-COPY --from=builder /tmp/librespot /usr/local/bin/librespot
+COPY --from=builder /build/aarch64-unknown-linux-gnu/release/librespot /usr/local/bin/librespot
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 

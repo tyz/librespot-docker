@@ -41,6 +41,7 @@ jobs:
         id: version
         run: |
           VERSION=$(awk -F '"' '/^version/ {print $2; exit}' librespot-source/Cargo.toml)
+          VERSION="${VERSION}-${GITHUB_SHA::7}"
           echo "Found version: $VERSION"
           echo "librespot_version=$VERSION" >> $GITHUB_OUTPUT
 
